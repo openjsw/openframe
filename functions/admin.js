@@ -22,14 +22,14 @@ export async function onRequest(context) {
         <div style="margin-top:16px"><a href="/">返回首页</a></div>
       </body>
       </html>
-    `, { headers: { 'content-type': 'text/html' } });
+    `, { headers: { 'content-type': 'text/html;charset=utf-8' } });
   }
 
   // 登录处理
   if (pathname === '/admin/login' && request.method === 'POST') {
     const data = await request.formData();
     const pwd = data.get('password');
-    if (pwd === (env.ADMIN_PASS || 'admin123')) {
+    if (pwd === (env.ADMIN_PASS )) {
       return new Response(`<script>location="/admin";</script>`, {
         headers: {
           'set-cookie': 'admin=1;Path=/;HttpOnly',
