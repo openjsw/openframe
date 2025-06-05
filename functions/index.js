@@ -1,82 +1,120 @@
-// /functions/index.js
-export async function onRequestGet({ request }) {
+// functions/index.js
+export async function onRequest(context) {
+  const { request } = context;
   const url = new URL(request.url);
-  const lang = url.searchParams.get('lang') === 'en'
-    ? 'en'
-    : (request.headers.get('accept-language')?.startsWith('en') ? 'en' : 'zh');
+  const pathname = url.pathname;
 
-  // 多语言文本
-  const i18n = {
-    zh: {
-      title: 'OpenJSW 开放技术',
-      desc: '开放、前沿的技术社区，专注于开源、云原生、边缘计算等领域。',
-      nav: ['项目导航', '关于', '文档'],
-      projects: [
-        { name: 'OpenGraphPic 图床', url: 'https://opengraphpic.openjsw.org', desc: '开源轻量图床，支持匿名上传和直链。' },
-        { name: 'JSW 技术网', url: 'https://jsw.org.cn', desc: '前沿技术资讯、开发经验与工具推荐。' },
-        // 可扩展
-      ],
-      footer: '由 OpenJSW 社区开放技术驱动',
-    },
-    en: {
-      title: 'OpenJSW Open Tech',
-      desc: 'An open, cutting-edge tech community focusing on open source, cloud-native, and edge computing.',
-      nav: ['Projects', 'About', 'Docs'],
-      projects: [
-        { name: 'OpenGraphPic', url: 'https://opengraphpic.openjsw.org', desc: 'Open-source, lightweight image host.' },
-        { name: 'JSW Tech Web', url: 'https://jsw.org.cn', desc: 'Tech news, tools, and developer experience.' },
-      ],
-      footer: 'Powered by OpenJSW Community Open Tech',
+  // 主页：文章列表
+  if (pathname === '/' || pathname === '/index.html') {
+    // 拉取文章列表
+    const api = url.origin + '/api/posts';
+    const res = await fetch(api);
+    const { data: posts } = await res.json();
+
+    let html = `
+      <html>
+      <head>
+        <title>开放技术网博客</title>
+        <meta name="viewport" content="width=device-width,initial-scale=1"/>
+        <style>
+          body{font-family:sans-serif;max-width:680px;margin:0 auto;}
+          h1{margin-top:32px;}
+          .post-list{margin-top:24px;}
+          .post-item{padding:12px 0;border-bottom:1px solid #eee;}
+          a{color:#06f;text-decoration:none;}
+          .footer{margin:32px 0;color:#888;font-size:14px;}
+        </style>
+      </head>
+      <body>
+        <h1>开放技术网博客</h1>
+        <div class="post-list">
+          ${posts.length ? posts.map(
+            p => `<div class="post-item">
+              <a href="/post/${p.id}">${p.title}</a>
+              <span style="color:#aaa;font-size:12px;margin-left:8px;">${p.created_at.slice(0,16).replace('T',' ')}</span>
+            </div>`
+          ).join('') : '<div>暂无文章</div>'}
+        </div>
+        <div class="footer">
+          <a href="/admin">后台管理</a> | Powered by <a href="https://openjsw.org" target="_blank">开放技术</a>
+        </div>
+      </body>
+      </html>
+    `;
+    return new Response(html, { headers: { 'content-type': 'text/html;charset=utf-8' } });
+  }
+
+  // 文章详情页
+  if (pathname.startsWith('/post/')) {
+    const id = pathname.split('/').pop();
+    // 拉取文章和评论
+    const res = await fetch(url.origin + `/api/post?id=${id}`);
+    const { data } = await res.json();
+
+    if (!data || !data.post) {
+      return new Response(`<html><body><h2>404 文章不存在</h2><a href="/">返回首页</a></body></html>`, {
+        headers: { 'content-type': 'text/html;charset=utf-8' }, status: 404
+      });
     }
-  }[lang];
 
-  // 页面模板
-  return new Response(`<!DOCTYPE html>
-<html lang="${lang}">
-<head>
-  <meta charset="UTF-8">
-  <title>${i18n.title}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="${i18n.desc}">
-  <link rel="icon" href="/favicon.ico">
-  <style>
-    body{font-family:system-ui,sans-serif;margin:0;padding:0;background:#f7f7f9;}
-    .nav{display:flex;gap:20px;justify-content:center;margin:30px 0;}
-    .nav a{color:#444;text-decoration:none;font-weight:bold;}
-    .logo{width:70px;height:70px;margin:30px auto 10px;display:block;}
-    h1{margin:0;text-align:center;font-size:2.2em;}
-    .desc{text-align:center;color:#555;margin:8px 0 24px 0;}
-    .projects{display:flex;flex-wrap:wrap;justify-content:center;gap:24px;padding:0 12px;}
-    .project{background:#fff;border-radius:16px;box-shadow:0 2px 8px #0001;padding:24px;width:270px;transition:transform .2s;}
-    .project:hover{transform:translateY(-5px) scale(1.02);}
-    .project a{font-size:1.15em;color:#296ef7;text-decoration:none;}
-    .footer{text-align:center;color:#888;margin:44px 0 16px 0;font-size:.97em;}
-    @media(max-width:600px){.projects{flex-direction:column;align-items:center;}.project{width:95%;}}
-    .lang-switch{position:absolute;right:14px;top:18px;font-size:.98em;opacity:.66;}
-    .lang-switch a{text-decoration:none;color:#888;}
-  </style>
-</head>
-<body>
-  <a href="/" tabindex="-1"><img src="/openjsw-logo.png" alt="logo" class="logo"></a>
-  <div class="lang-switch">
-    <a href="?lang=${lang === 'en' ? 'zh' : 'en'}">${lang === 'en' ? '简体中文' : 'ENGLISH'}</a>
-  </div>
-  <h1>${i18n.title}</h1>
-  <div class="desc">${i18n.desc}</div>
-  <nav class="nav">
-    ${i18n.nav.map(n => `<a href="#">${n}</a>`).join('')}
-  </nav>
-  <div class="projects">
-    ${i18n.projects.map(p => `
-      <div class="project">
-        <a href="${p.url}" target="_blank">${p.name}</a>
-        <div style="margin:6px 0 0 0;color:#555;">${p.desc}</div>
-      </div>
-    `).join('')}
-  </div>
-  <div class="footer">${i18n.footer}</div>
-</body>
-</html>`, {
-    headers: { "content-type": "text/html; charset=utf-8" }
-  });
+    let html = `
+      <html>
+      <head>
+        <title>${data.post.title} | 开放技术网</title>
+        <meta name="viewport" content="width=device-width,initial-scale=1"/>
+        <style>
+          body{font-family:sans-serif;max-width:680px;margin:0 auto;}
+          h2{margin:32px 0 8px 0;}
+          .content{margin-bottom:32px;}
+          .comment{margin:8px 0;padding:8px 12px;border-left:2px solid #eee;background:#fafbfc;}
+          .comment-form input,.comment-form textarea{margin-bottom:8px;width:99%;padding:6px;}
+          .comment-form button{padding:6px 16px;}
+          .back{margin-top:24px;}
+        </style>
+      </head>
+      <body>
+        <h2>${data.post.title}</h2>
+        <div class="content">${data.post.content.replace(/\n/g, "<br>")}</div>
+        <hr>
+        <h3>评论区</h3>
+        <div id="comments">
+          ${data.comments.length ? data.comments.map(
+            c => `<div class="comment"><b>${c.author}</b>: ${c.content} <span style="color:#bbb;font-size:12px;">${c.created_at.slice(0,16).replace('T',' ')}</span></div>`
+          ).join('') : '<div style="color:#aaa">暂无评论</div>'}
+        </div>
+        <form id="commentForm" class="comment-form" autocomplete="off">
+          <input name="author" placeholder="昵称" required maxlength="20"><br>
+          <textarea name="content" placeholder="你的评论..." required maxlength="300" rows="3"></textarea><br>
+          <button type="submit">提交评论</button>
+          <input type="hidden" name="post_id" value="${id}">
+        </form>
+        <div id="commentResult" style="color:#c00;margin:12px 0;"></div>
+        <div class="back"><a href="/">← 返回首页</a></div>
+        <script>
+        document.getElementById('commentForm').onsubmit = async function(e) {
+          e.preventDefault();
+          const form = e.target;
+          const data = {
+            author: form.author.value,
+            content: form.content.value,
+            post_id: form.post_id.value
+          };
+          const resp = await fetch('/api/comments', {
+            method: 'POST',
+            headers: {'content-type': 'application/json'},
+            body: JSON.stringify(data)
+          });
+          const res = await resp.json();
+          document.getElementById('commentResult').textContent = res.msg;
+          if(res.code === 0) setTimeout(()=>location.reload(), 500);
+        }
+        </script>
+      </body>
+      </html>
+    `;
+    return new Response(html, { headers: { 'content-type': 'text/html;charset=utf-8' } });
+  }
+
+  // 404
+  return new Response('<h2>404 Not Found</h2>', { status: 404, headers: { 'content-type': 'text/html' } });
 }
